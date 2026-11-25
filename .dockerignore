@@ -1,0 +1,10 @@
+.git
+.github
+.venv
+.env
+tests
+docs
+**/__pycache__
+data/*.sqlite3*
+*credentials*.json
+service-account*.json

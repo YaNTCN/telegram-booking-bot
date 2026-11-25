@@ -1,0 +1,12 @@
+services:
+  bot:
+    build: .
+    env_file: .env
+    restart: unless-stopped
+    volumes:
+      - bot_db:/app/data/db
+      # Ключ Google: положите файл рядом и укажите GOOGLE_CREDENTIALS=/run/secrets/google.json
+      # - ./service-account.json:/run/secrets/google.json:ro
+
+volumes:
+  bot_db:
