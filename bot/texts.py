@@ -6,7 +6,7 @@ import datetime as dt
 from html import escape
 
 from .catalog import Catalog
-from .storage import CANCELLED, CONFIRMED, EXPIRED, PAID, PENDING, Booking
+from .storage import CANCELLED, CONFIRMED, EXPIRED, PAID, PENDING, REFUNDED, Booking
 
 BTN_BOOK = "Записаться"
 BTN_MY = "Мои записи"
@@ -23,7 +23,7 @@ WEEKDAYS = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
 MONTHS = ("января", "февраля", "марта", "апреля", "мая", "июня", "июля",
           "августа", "сентября", "октября", "ноября", "декабря")
 STATUS = {PENDING: "ждёт оплаты", CONFIRMED: "оплата на месте", PAID: "оплачено",
-          CANCELLED: "отменена", EXPIRED: "не оплачена"}
+          CANCELLED: "отменена", EXPIRED: "не оплачена", REFUNDED: "отменена, деньги возвращены"}
 
 DEMO_NOTE = (
     "<i>Это демо-бот. Вводите любое имя и выдуманный номер: записи удаляются сами через сутки, "
@@ -56,7 +56,7 @@ BTN_CONFIRM = "Записаться"
 BOOKED = "Готово, вы записаны!\n\n{summary}\n\nНапомню за день. Отменить можно в «Мои записи»."
 INVOICE_TITLE = "Запись №{id}"
 INVOICE_TEXT = "{service}, {when}. Мастер: {master}"
-PAY_HINT = "Время держится за вами {minutes} минут. Тестовая карта: <code>1111 1111 1111 1026</code>, срок <code>12/30</code>, CVC <code>000</code>."
+PAY_HINT = "Время держится за вами {minutes} минут. Тестовая карта: <code>5555 5555 5555 4477</code>, срок любой будущий, CVC любой."
 PAID_OK = "Оплата прошла, спасибо!\n\n{summary}\n\nНапомню за день."
 PAY_EXPIRED = "Время на оплату вышло, запись №{id} снята. Можно записаться снова."
 PAY_UNAVAILABLE = "Онлайн-оплата сейчас не работает, время не занято. Можно записаться с оплатой на месте:"
@@ -66,6 +66,10 @@ NOTHING_TO_CANCEL = "Отменять нечего."
 NO_BOOKINGS = "У вас нет предстоящих записей."
 MY_BOOKINGS = "Ваши записи:"
 ASK_CANCEL = "Отменить запись?\n\n{summary}"
+ASK_CANCEL_REFUND = "\n\nОплачено онлайн, вернём {amount} ₽ на карту."
+ASK_CANCEL_NO_REFUND = "\n\nОнлайн-оплата при отмене не возвращается."
+REFUND_DONE = "Деньги за запись №{id} возвращаются на карту: {amount} ₽. Обычно они приходят сразу, иногда банку нужно до нескольких дней."
+REFUND_MANUAL = "Деньги за запись №{id} ({amount} ₽) вернём на карту, администратор уже знает."
 CANCEL_DONE = "Запись №{id} отменена."
 CANCEL_TOO_LATE = "Отменить онлайн можно не позже чем за {hours} ч. Позвоните в салон."
 REMINDER = "Напоминаю: завтра у вас запись.\n\n{summary}\n\nЕсли планы изменились, отмените в «Мои записи»."
@@ -80,6 +84,13 @@ ADMIN_PAID = "💳 Запись №{id} оплачена онлайн ({price} �
 ADMIN_CANCELLED = "❌ Клиент отменил запись №{id}\n\n{summary}"
 ADMIN_PAY_BROKEN = "⚠️ Онлайн-оплата не работает: {error}\nКлиентам предлагается оплата на месте. Проверьте PAYMENT_TOKEN."
 ADMIN_CANCELLED_BY_YOU = "Запись №{id} отменена, клиенту отправлено сообщение."
+ADMIN_REFUNDED = "💸 По записи №{id} возвращено {amount} ₽."
+ADMIN_REFUND_FAILED = (
+    "⚠️ Запись №{id} была оплачена онлайн, но вернуть {amount} ₽ автоматически не вышло: {error}\n"
+    "Верните вручную в кабинете ЮKassa (платёж <code>{payment}</code>) или повторите: <code>/refund {id}</code>"
+)
+REFUND_USAGE = "Формат: /refund 12 или /refund 12 1500 (сумма в рублях)"
+REFUND_NOT_POSSIBLE = "Запись №{id} нельзя вернуть: она не отменена, не оплачена онлайн или деньги уже возвращены."
 
 
 def day(date: dt.date) -> str:

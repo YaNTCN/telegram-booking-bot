@@ -19,6 +19,7 @@ from aiogram.types import (
 from bot.app import build_dispatcher, create_bot
 from bot.catalog import Catalog
 from bot.config import Config
+from bot.refunds import Refund
 from bot.services import Salon
 from bot.storage import Bookings
 
@@ -70,16 +71,28 @@ class FakeSheet:
             self.rows.pop(booking_id, None)
 
 
+class FakeRefunder:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, int]] = []
+        self.result = Refund(True)
+
+    async def refund(self, payment_id: str, amount: int, description: str) -> Refund:
+        self.calls.append((payment_id, amount))
+        return self.result
+
+
 class Harness:
-    def __init__(self, payments: bool = True) -> None:
+    def __init__(self, payments: bool = True, refund_percent: int = 100) -> None:
         self.loop = asyncio.new_event_loop()
         self.now = NOW
         self.bookings = Bookings(":memory:", TZ)
         self.run(self.bookings.open())
         self.sheet = FakeSheet()
         config = Config("42:TEST", admin_chat_id=ADMIN, timezone=TZ,
-                        payment_token="TEST:provider" if payments else "")
-        self.salon = Salon(config, Catalog.from_json(SALON), self.bookings, self.sheet, clock=lambda: self.now)
+                        payment_token="TEST:provider" if payments else "", refund_percent=refund_percent)
+        self.refunder = FakeRefunder()
+        self.salon = Salon(config, Catalog.from_json(SALON), self.bookings, self.sheet, clock=lambda: self.now,
+                           refunder=self.refunder)
         self.session = FakeSession()
         self.bot = create_bot("42:TEST", session=self.session)
         self.dp = build_dispatcher(self.salon)

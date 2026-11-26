@@ -13,6 +13,7 @@ from . import jobs
 from .app import build_dispatcher, create_bot
 from .catalog import Catalog
 from .config import load_config
+from .refunds import YooKassa
 from .services import Salon
 from .sheets import GoogleSheet, NoSheet
 from .storage import Bookings
@@ -34,9 +35,12 @@ async def main() -> None:
     payments = "нет"
     if config.payments_on:
         payments = "тестовая" if ":TEST:" in config.payment_token else "боевая (настоящие деньги)"
-    log.info("Оплата онлайн: %s, админ: %s", payments, config.admin_chat_id or "не задан")
+    refunder = YooKassa(config.yookassa_shop_id, config.yookassa_secret_key) if config.refunds_on else None
+    log.info("Оплата онлайн: %s, возврат при отмене: %s, админ: %s", payments,
+             "автоматически" if refunder else "вручную", config.admin_chat_id or "не задан")
 
-    salon = Salon(config, catalog, bookings, sheet, clock=lambda: dt.datetime.now(config.timezone))
+    salon = Salon(config, catalog, bookings, sheet, clock=lambda: dt.datetime.now(config.timezone),
+                  refunder=refunder)
     bot = create_bot(config.token)
     dp = build_dispatcher(salon)
     background = asyncio.create_task(jobs.run(bot, salon))

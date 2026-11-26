@@ -20,6 +20,9 @@ class Config:
     salon_path: Path = ROOT / "data" / "salon.json"
     db_path: Path = ROOT / "data" / "bookings.sqlite3"
     payment_token: str = ""
+    yookassa_shop_id: str = ""
+    yookassa_secret_key: str = ""
+    refund_percent: int = 100
     google_credentials: str = ""
     spreadsheet_id: str = ""
     demo_ttl_hours: int = 24
@@ -30,6 +33,10 @@ class Config:
     @property
     def payments_on(self) -> bool:
         return bool(self.payment_token)
+
+    @property
+    def refunds_on(self) -> bool:
+        return bool(self.yookassa_shop_id and self.yookassa_secret_key)
 
 
 def load_config() -> Config:
@@ -46,6 +53,9 @@ def load_config() -> Config:
         salon_path=Path(os.getenv("SALON_PATH") or defaults.salon_path),
         db_path=Path(os.getenv("DB_PATH") or defaults.db_path),
         payment_token=os.getenv("PAYMENT_TOKEN", "").strip(),
+        yookassa_shop_id=os.getenv("YOOKASSA_SHOP_ID", "").strip(),
+        yookassa_secret_key=os.getenv("YOOKASSA_SECRET_KEY", "").strip(),
+        refund_percent=min(100, max(0, int(os.getenv("REFUND_PERCENT") or defaults.refund_percent))),
         google_credentials=os.getenv("GOOGLE_CREDENTIALS", "").strip(),
         spreadsheet_id=os.getenv("SPREADSHEET_ID", "").strip(),
         demo_ttl_hours=int(os.getenv("DEMO_TTL_HOURS") or defaults.demo_ttl_hours),

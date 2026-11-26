@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 import aiosqlite
 
 PENDING, CONFIRMED, PAID, CANCELLED, EXPIRED = "pending_payment", "confirmed", "paid", "cancelled", "expired"
+REFUNDED = "refunded"  # отменена, деньги за онлайн-оплату возвращены
 ACTIVE = (PENDING, CONFIRMED, PAID)
 UTC = dt.timezone.utc
 
@@ -33,6 +34,7 @@ CREATE TABLE IF NOT EXISTS bookings (
     status TEXT NOT NULL,
     hold_until TEXT,
     payment_id TEXT,
+    refunded INTEGER,
     reminded INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL
 );
@@ -57,6 +59,7 @@ class Booking:
     payment_id: str | None
     reminded: bool
     created_at: dt.datetime
+    refunded: int | None = None  # сколько рублей вернули
 
 
 def _iso(moment: dt.datetime) -> str:
@@ -76,6 +79,10 @@ class Bookings:
         self._db = await aiosqlite.connect(self._path)
         self._db.row_factory = aiosqlite.Row
         await self._db.executescript(SCHEMA)
+        async with self._db.execute("PRAGMA table_info(bookings)") as cursor:
+            columns = {row["name"] async for row in cursor}
+        if "refunded" not in columns:  # база от версии без возвратов
+            await self._db.execute("ALTER TABLE bookings ADD COLUMN refunded INTEGER")
         await self._db.commit()
 
     async def close(self) -> None:
@@ -160,7 +167,7 @@ class Bookings:
 
     async def last_choice(self, user_id: int, service_id: str | None = None) -> tuple[str, str] | None:
         """(услуга, мастер) из последней записи клиента; с service_id только по этой услуге."""
-        where, params = "user_id = ? AND status IN ('confirmed', 'paid', 'cancelled')", [user_id]
+        where, params = "user_id = ? AND status IN ('confirmed', 'paid', 'cancelled', 'refunded')", [user_id]
         if service_id is not None:
             where += " AND service_id = ?"
             params.append(service_id)
@@ -174,6 +181,10 @@ class Bookings:
         await self.db.execute(
             "UPDATE bookings SET status = ?, payment_id = COALESCE(?, payment_id), hold_until = NULL WHERE id = ?",
             (status, payment_id, booking_id))
+        await self.db.commit()
+
+    async def set_refunded(self, booking_id: int, amount: int) -> None:
+        await self.db.execute("UPDATE bookings SET status = 'refunded', refunded = ? WHERE id = ?", (amount, booking_id))
         await self.db.commit()
 
     async def expire_holds(self, now: dt.datetime) -> list[Booking]:
@@ -216,4 +227,5 @@ class Bookings:
             start=self._time(row["starts_at"]), end=self._time(row["ends_at"]), name=row["name"], phone=row["phone"],
             price=row["price"], status=row["status"], hold_until=self._time(row["hold_until"]),
             payment_id=row["payment_id"], reminded=bool(row["reminded"]), created_at=self._time(row["created_at"]),
+            refunded=row["refunded"],
         )

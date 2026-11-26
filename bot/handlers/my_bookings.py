@@ -36,17 +36,24 @@ async def cancel(callback: CallbackQuery, callback_data: CancelCb, salon: Salon,
         await callback.answer(texts.CANCEL_TOO_LATE.format(hours=salon.config.cancel_until_hours), show_alert=True)
         return
     summary = texts.summary(booking, salon.catalog)
+    refund = booking.price * salon.config.refund_percent // 100 if booking.status == PAID else 0
     if not callback_data.sure:
+        text = texts.ASK_CANCEL.format(summary=summary)
+        if booking.status == PAID:
+            text += texts.ASK_CANCEL_REFUND.format(amount=refund) if refund else texts.ASK_CANCEL_NO_REFUND
         await callback.answer()
-        await callback.message.edit_text(texts.ASK_CANCEL.format(summary=summary), reply_markup=cancel_sure(booking.id))
+        await callback.message.edit_text(text, reply_markup=cancel_sure(booking.id))
         return
 
+    # Статус меняется до возврата: второе нажатие «Да, отменить» уже не пройдёт проверку выше.
     await salon.bookings.set_status(booking.id, CANCELLED)
     await callback.answer(texts.CANCEL_DONE.format(id=booking.id))
     text, markup = await _view(callback.from_user.id, salon)
     await callback.message.edit_text(text, reply_markup=markup)
     await salon.sheet_status(booking.id, CANCELLED)
     await salon.notify_admin(bot, texts.ADMIN_CANCELLED.format(id=booking.id, summary=summary))
+    if refund:
+        await callback.message.answer(await salon.refund(bot, booking, refund))
 
 
 async def _view(user_id: int, salon: Salon) -> tuple[str, InlineKeyboardMarkup | None]:

@@ -1,4 +1,4 @@
-"""Администратор (ADMIN_CHAT_ID): записи на день и отмена записи клиента."""
+"""Администратор (ADMIN_CHAT_ID): записи на день, отмена записи клиента, повтор возврата денег."""
 
 from __future__ import annotations
 
@@ -47,8 +47,32 @@ async def cancel(callback: CallbackQuery, callback_data: AdminCancelCb, salon: S
     await salon.sheet_status(booking.id, CANCELLED)
     await callback.answer(texts.ADMIN_CANCELLED_BY_YOU.format(id=booking.id), show_alert=True)
     await callback.message.edit_reply_markup(reply_markup=None)
+    text = texts.CANCELLED_BY_SALON.format(id=booking.id)
+    if booking.status == PAID:  # салон отменил сам: возврат всегда полный
+        text += "\n\n" + await salon.refund(bot, booking, booking.price)
+    await _send(bot, booking.user_id, text)
+
+
+async def refund(message: Message, command: CommandObject, salon: Salon, bot: Bot) -> None:
+    """/refund 12 или /refund 12 1500: повторить возврат, если автоматический не прошёл."""
+    parts = (command.args or "").split()
+    if not 1 <= len(parts) <= 2 or not all(part.isdigit() for part in parts):
+        await message.answer(texts.REFUND_USAGE)
+        return
+    booking = await salon.bookings.get(int(parts[0]))
+    if booking is None or booking.status != CANCELLED or not booking.payment_id:
+        await message.answer(texts.REFUND_NOT_POSSIBLE.format(id=parts[0]))
+        return
+    amount = min(int(parts[1]), booking.price) if len(parts) == 2 else booking.price
+    if amount <= 0:
+        await message.answer(texts.REFUND_USAGE)
+        return
+    await _send(bot, booking.user_id, await salon.refund(bot, booking, amount))
+
+
+async def _send(bot: Bot, user_id: int, text: str) -> None:
     try:
-        await bot.send_message(booking.user_id, texts.CANCELLED_BY_SALON.format(id=booking.id))
+        await bot.send_message(user_id, text)
     except TelegramAPIError:
         pass  # клиент мог заблокировать бота
 
@@ -58,5 +82,6 @@ def router() -> Router:
     r.message.filter(IsAdmin())
     r.callback_query.filter(IsAdmin())
     r.message.register(day, Command("day"))
+    r.message.register(refund, Command("refund"))
     r.callback_query.register(cancel, AdminCancelCb.filter())
     return r
